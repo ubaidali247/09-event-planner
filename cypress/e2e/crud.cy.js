@@ -1,5 +1,5 @@
-// CRUD Tests - Event Planner
-describe('CRUD Operations - Event Planner', () => {
+// CRUD Tests - 09 Event Planner
+describe('CRUD Operations - 09 Event Planner', () => {
   beforeEach(() => {
     cy.visit('/');
     cy.get('.nav-link[data-page="events"]').click();
@@ -105,7 +105,7 @@ describe('CRUD Operations - Event Planner', () => {
     cy.request({
       method: 'POST',
       url: '/api/events',
-      body: {"title":"Test Event","description":"Test event description","date":"2024-06-15","location":"Dublin","capacity":"100","category":"Conference","status":"upcoming"},
+      body: {"title": "Test Event", "description": "Test event", "date": "2024-06-15", "location": "Dublin", "capacity": "100", "category": "Conference", "status": "upcoming"},
     }).its('status').should('eq', 201);
   });
 
