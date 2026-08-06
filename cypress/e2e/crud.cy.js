@@ -1,7 +1,6 @@
 // CRUD Tests - Event Planner
-// NOTE: Tests marked [FLAKY-INJECTED] are deliberately made unstable
-// for MSc dissertation research on AI-assisted flaky test detection.
-// Flakiness type: timing-based (random waits) and state-based (race conditions)
+// [FLAKY-INJECTED] tests are deliberately unstable (~30-40% failure rate)
+// MSc Dissertation: AI-Assisted Flaky Test Detection in CI/CD Pipelines
 
 describe('CRUD Operations - Event Planner', () => {
   beforeEach(() => {
@@ -15,14 +14,12 @@ describe('CRUD Operations - Event Planner', () => {
     cy.get('#events-list .item-card').should('have.length.gte', 1);
   });
 
-  // [FLAKY-INJECTED] timing: random wait before checking list renders
+  // [FLAKY-INJECTED] backend slow response causes list not to load in time
   it('creates a new item successfully', () => {
     cy.get('#btn-add-new').click();
     cy.get('#field-title').type('Test Event');
     cy.get('#field-description, #field-content, #field-review, #field-notes').first().type('Test description for new item');
     cy.get('#btn-submit').click();
-    // Flakiness: random delay simulates slow DOM re-render after submission
-    cy.wait(Math.random() < 0.4 ? 6000 : 500);
     cy.get('#page-events').should('not.have.class', 'hidden');
     cy.get('#events-list').should('contain', 'Test Event');
   });
@@ -57,11 +54,8 @@ describe('CRUD Operations - Event Planner', () => {
     cy.get('#btn-back').should('be.visible');
   });
 
-  // [FLAKY-INJECTED] timing: race condition between navigation and DOM update
   it('detail page has edit button', () => {
     cy.get('#events-list .item-card').first().find('.btn-view').click();
-    // Flakiness: intermittent wait causes element check before page fully renders
-    if (Math.random() < 0.35) { cy.wait(5000); }
     cy.get('#btn-edit').should('be.visible');
   });
 
@@ -87,13 +81,10 @@ describe('CRUD Operations - Event Planner', () => {
     cy.get('#field-title').invoke('val').should('not.be.empty');
   });
 
-  // [FLAKY-INJECTED] timing: slow re-render after update submission
   it('can update an existing item', () => {
     cy.get('#events-list .item-card').first().find('.btn-edit-card').click();
     cy.get('#field-title').clear().type('Updated Event Title');
     cy.get('#btn-submit').click();
-    // Flakiness: random delay causes list check before update propagates
-    cy.wait(Math.random() < 0.4 ? 5500 : 300);
     cy.get('#events-list').should('contain', 'Updated Event Title');
   });
 
@@ -115,7 +106,7 @@ describe('CRUD Operations - Event Planner', () => {
     cy.request('/api/events').its('body').should('be.an', 'array');
   });
 
-  // [FLAKY-INJECTED] backend: random 500 errors from POST endpoint
+  // [FLAKY-INJECTED] backend randomly returns 500 on POST ~20% of runs
   it('api create endpoint returns 201', () => {
     cy.request({
       method: 'POST',
@@ -123,7 +114,6 @@ describe('CRUD Operations - Event Planner', () => {
       body: {"title":"Test Event","description":"Test event","date":"2024-06-15","location":"Dublin","capacity":"100","category":"Conference","status":"upcoming"},
       failOnStatusCode: false,
     }).then(res => {
-      // Flakiness: backend randomly returns 500, causing this assertion to fail
       expect(res.status).to.eq(201);
     });
   });
