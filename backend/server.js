@@ -12,6 +12,44 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
+// ============================================================
+// FLAKINESS INJECTION LAYER
+// Controls which endpoints behave unreliably and how often
+// Used for: MSc Dissertation - AI-Assisted Flaky Test Detection
+// ============================================================
+const FLAKY_CONFIG = {
+  enabled: true,
+  slowEndpoints: ['/api/events', '/api/events/:id'],  // GET endpoints that randomly slow down
+  errorEndpoints: ['/api/events'],                       // POST endpoint that randomly errors
+  slowProbability: 0.35,    // 35% chance of slow response
+  errorProbability: 0.25,   // 25% chance of server error on POST
+  slowDelayMs: {
+    min: 3000,
+    max: 8000
+  }
+};
+
+function randomDelay(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function shouldBeFlaky(probability) {
+  return FLAKY_CONFIG.enabled && Math.random() < probability;
+}
+
+// Flakiness middleware for GET /api/events
+function flakyGetMiddleware(req, res, next) {
+  if (shouldBeFlaky(FLAKY_CONFIG.slowProbability)) {
+    const delay = randomDelay(FLAKY_CONFIG.slowDelayMs.min, FLAKY_CONFIG.slowDelayMs.max);
+    console.log(`[FLAKY] Injecting ${delay}ms delay on GET /api/events`);
+    setTimeout(next, delay);
+  } else {
+    next();
+  }
+}
+
+// ============================================================
+
 function readDB() {
   if (!fs.existsSync(DB_PATH)) {
     const initial = { events: [] };
@@ -25,7 +63,6 @@ function writeDB(data) {
   fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
 }
 
-// Seed data if empty
 function seedIfEmpty() {
   const db = readDB();
   if (db.events.length === 0) {
@@ -33,66 +70,58 @@ function seedIfEmpty() {
     {
         "id": "seed-1",
         "title": "Annual Tech Conference",
-        "description": "Sample description for Annual Tech Conference. This is test data for the flaky test detection research study.",
+        "description": "Sample description for research study item 1.",
         "category": "Conference",
-        "createdAt": "2026-07-21T00:21:18.640Z",
-        "status": "upcoming"
+        "createdAt": "2024-01-01T10:00:00.000Z"
     },
     {
         "id": "seed-2",
         "title": "JavaScript Workshop",
-        "description": "Sample description for JavaScript Workshop. This is test data for the flaky test detection research study.",
+        "description": "Sample description for research study item 2.",
         "category": "Workshop",
-        "createdAt": "2026-07-20T00:21:18.640Z",
-        "status": "ongoing"
+        "createdAt": "2024-02-02T10:00:00.000Z"
     },
     {
         "id": "seed-3",
         "title": "Team Building Day",
-        "description": "Sample description for Team Building Day. This is test data for the flaky test detection research study.",
+        "description": "Sample description for research study item 3.",
         "category": "Social",
-        "createdAt": "2026-07-19T00:21:18.640Z",
-        "status": "completed"
+        "createdAt": "2024-03-03T10:00:00.000Z"
     },
     {
         "id": "seed-4",
         "title": "Product Launch Party",
-        "description": "Sample description for Product Launch Party. This is test data for the flaky test detection research study.",
+        "description": "Sample description for research study item 4.",
         "category": "Sports",
-        "createdAt": "2026-07-18T00:21:18.640Z",
-        "status": "cancelled"
+        "createdAt": "2024-04-04T10:00:00.000Z"
     },
     {
         "id": "seed-5",
         "title": "Coding Bootcamp",
-        "description": "Sample description for Coding Bootcamp. This is test data for the flaky test detection research study.",
-        "category": "Concert",
-        "createdAt": "2026-07-17T00:21:18.640Z",
-        "status": "upcoming"
+        "description": "Sample description for research study item 5.",
+        "category": "Conference",
+        "createdAt": "2024-05-05T10:00:00.000Z"
     },
     {
         "id": "seed-6",
         "title": "Design Sprint",
-        "description": "Sample description for Design Sprint. This is test data for the flaky test detection research study.",
-        "category": "Conference",
-        "createdAt": "2026-07-16T00:21:18.640Z",
-        "status": "ongoing"
+        "description": "Sample description for research study item 6.",
+        "category": "Workshop",
+        "createdAt": "2024-06-06T10:00:00.000Z"
     },
     {
         "id": "seed-7",
         "title": "Hackathon 2024",
-        "description": "Sample description for Hackathon 2024. This is test data for the flaky test detection research study.",
-        "category": "Workshop",
-        "createdAt": "2026-07-15T00:21:18.640Z",
-        "status": "completed"
+        "description": "Sample description for research study item 7.",
+        "category": "Social",
+        "createdAt": "2024-07-07T10:00:00.000Z"
     },
     {
         "id": "seed-8",
         "title": "Networking Evening",
-        "description": "Sample description for Networking Evening. This is test data for the flaky test detection research study.",
-        "category": "Social",
-        "createdAt": "2026-07-14T00:21:18.640Z",
-        "status": "cancelled"
+        "description": "Sample description for research study item 8.",
+        "category": "Sports",
+        "createdAt": "2024-08-08T10:00:00.000Z"
     }
 ];
     writeDB(db);
@@ -100,13 +129,13 @@ function seedIfEmpty() {
 }
 seedIfEmpty();
 
-// GET all
-app.get('/api/events', (req, res) => {
+// GET all - with flakiness injection
+app.get('/api/events', flakyGetMiddleware, (req, res) => {
   const db = readDB();
   let items = db.events;
   if (req.query.search) {
     const q = req.query.search.toLowerCase();
-    items = items.filter(i => i.title && i.title.toLowerCase().includes(q) || (i.name && i.name.toLowerCase().includes(q)));
+    items = items.filter(i => (i.title && i.title.toLowerCase().includes(q)) || (i.name && i.name.toLowerCase().includes(q)));
   }
   if (req.query.category) {
     items = items.filter(i => i.category === req.query.category);
@@ -114,16 +143,31 @@ app.get('/api/events', (req, res) => {
   res.json(items);
 });
 
-// GET one
+// GET one - with flakiness injection
 app.get('/api/events/:id', (req, res) => {
-  const db = readDB();
-  const item = db.events.find(i => i.id === req.params.id);
-  if (!item) return res.status(404).json({ error: 'Not found' });
-  res.json(item);
+  if (shouldBeFlaky(FLAKY_CONFIG.slowProbability * 0.5)) {
+    const delay = randomDelay(2000, 5000);
+    console.log(`[FLAKY] Injecting ${delay}ms delay on GET /api/events/${req.params.id}`);
+    setTimeout(() => {
+      const db = readDB();
+      const item = db.events.find(i => i.id === req.params.id);
+      if (!item) return res.status(404).json({ error: 'Not found' });
+      res.json(item);
+    }, delay);
+  } else {
+    const db = readDB();
+    const item = db.events.find(i => i.id === req.params.id);
+    if (!item) return res.status(404).json({ error: 'Not found' });
+    res.json(item);
+  }
 });
 
-// POST create
+// POST create - with flakiness injection (random 500 errors)
 app.post('/api/events', (req, res) => {
+  if (shouldBeFlaky(FLAKY_CONFIG.errorProbability)) {
+    console.log(`[FLAKY] Injecting 500 error on POST /api/events`);
+    return res.status(500).json({ error: 'Internal server error - flaky injection' });
+  }
   const db = readDB();
   const item = { id: uuidv4(), ...req.body, createdAt: new Date().toISOString() };
   db.events.push(item);
@@ -160,11 +204,11 @@ app.post('/api/reset', (req, res) => {
 });
 
 // Health check
-app.get('/api/health', (req, res) => res.json({ status: 'ok', project: 'Event Planner' }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok', project: 'Event Planner', flakyEnabled: FLAKY_CONFIG.enabled }));
 
 // Serve frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html'));
 });
 
-app.listen(PORT, () => console.log('Event Planner server running on http://localhost:3009'));
+app.listen(PORT, () => console.log('Event Planner server running on http://localhost:3009 [FLAKY MODE: ' + FLAKY_CONFIG.enabled + ']'));
